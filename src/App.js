@@ -7,7 +7,7 @@
 // 7. Drawing utilities from tensorflow DONE
 // 8. Draw functions DONE
 
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./App.css";
 import * as tf from "@tensorflow/tfjs";
 import * as posenet from "@tensorflow-models/posenet";
@@ -15,6 +15,7 @@ import Webcam from "react-webcam";
 import { drawKeypoints, drawSkeleton } from "./utilities";
 
 function App() {
+  const [poseArray, setPoseArray] = useState([])
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -47,7 +48,8 @@ function App() {
 
       // Make Detections
       const pose = await net.estimateSinglePose(video);
-      console.log(pose);
+
+      setPoseArray(pose.keypoints)
 
       drawCanvas(pose, video, videoWidth, videoHeight, canvasRef);
     }
@@ -62,7 +64,39 @@ function App() {
     drawSkeleton(pose["keypoints"], 0.7, ctx);
   };
 
-  runPosenet();
+  useEffect(() => { runPosenet() }, [])
+
+  const [dataArray, setDataArray] = useState([]);
+  const [averageArray, setAvarageArray] = useState([])
+
+  useEffect(() => {
+    if (dataArray.length < 100){
+      setDataArray((prev) => [...prev, ...poseArray.filter(v => v.part === 'nose').map(v => v.position)])
+    }
+    else {
+      let total = dataArray.reduce((p, c, i, a) => {
+        return {
+          x: p.x + c.x,
+          y: p.y + c.y
+        }
+      })
+      total.x = total.x / dataArray.length;
+      total.y = total.y / dataArray.length;
+      setAvarageArray((prev) => [...prev, total])
+      setDataArray([])
+    }
+  }, [poseArray])
+
+  useEffect(() => {
+    // 100개 평균 배열    
+    console.info(averageArray);
+    if(averageArray[2]?.x){
+      if(Math.abs(averageArray[averageArray.length-1].x - averageArray[averageArray.length-2]) + Math.abs(averageArray[averageArray.length-1].y - averageArray[averageArray.length-2].y) < 10){
+        console.log("안 움직임");
+      }
+
+  },[averageArray])
+
 
   return (
     <div className="App">
@@ -81,7 +115,6 @@ function App() {
             height: 480,
           }}
         />
-
         <canvas
           ref={canvasRef}
           style={{
